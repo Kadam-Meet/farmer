@@ -7,22 +7,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { format } from "date-fns";
-
-interface Booking {
-  id: string;
-  start_date: string;
-  listing: {
-    title: string;
-    type: string;
-  };
-  total_price: number;
-  status: string;
-  owner_id: string;
-  renter_id: string;
-}
+import { apiClient, type BookingResponse } from "@/lib/api";
 
 const BookingHistory = () => {
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] = useState<BookingResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -40,16 +28,12 @@ const BookingHistory = () => {
       }
       setCurrentUserId(user.id);
 
-      const { data, error } = await supabase
-        .from("bookings")
-        .select(`
-          *,
-          listing:listings(title, type)
-        `)
-        .or(`owner_id.eq.${user.id},renter_id.eq.${user.id}`)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
+      const data = await apiClient.getBookings({
+        role: 'all',
+        limit: 100,
+        offset: 0,
+      });
+      
       setBookings(data || []);
     } catch (error) {
       console.error("Error fetching bookings:", error);
@@ -61,13 +45,7 @@ const BookingHistory = () => {
 
   const handleStatusUpdate = async (bookingId: string, newStatus: "pending" | "accepted" | "rejected" | "completed" | "cancelled") => {
     try {
-      const { error } = await supabase
-        .from("bookings")
-        .update({ status: newStatus })
-        .eq("id", bookingId);
-
-      if (error) throw error;
-      
+      await apiClient.updateBookingStatus(bookingId, newStatus);
       toast.success(`Booking ${newStatus}`);
       fetchBookings();
     } catch (error) {
@@ -98,16 +76,16 @@ const BookingHistory = () => {
     return bookings.filter(b => b.renter_id === currentUserId);
   };
 
-  const renderBookingRow = (booking: Booking) => {
+  const renderBookingRow = (booking: BookingResponse) => {
     const isOwner = booking.owner_id === currentUserId;
     const canAcceptReject = isOwner && booking.status === "pending";
 
     return (
       <tr key={booking.id} className="border-b">
         <td className="py-4 px-4">{format(new Date(booking.start_date), "dd/MM/yyyy")}</td>
-        <td className="py-4 px-4">{booking.listing.title}</td>
-        <td className="py-4 px-4 capitalize">{booking.listing.type}</td>
-        <td className="py-4 px-4">₹{booking.total_price.toLocaleString()}</td>
+        <td className="py-4 px-4">{booking.listing?.title || "N/A"}</td>
+        <td className="py-4 px-4 capitalize">{booking.listing?.type || "N/A"}</td>
+        <td className="py-4 px-4">₹{booking.total_price?.toLocaleString() || "0"}</td>
         <td className="py-4 px-4">{getStatusBadge(booking.status)}</td>
         <td className="py-4 px-4">
           <Badge variant="outline">{isOwner ? "Owner" : "Renter"}</Badge>
