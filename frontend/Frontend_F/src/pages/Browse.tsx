@@ -16,6 +16,7 @@ const Browse = () => {
   const [listings, setListings] = useState<Listing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [filters, setFilters] = useState<FilterState>({
     categories: [],
     brands: [],
@@ -31,6 +32,7 @@ const Browse = () => {
     try {
       setIsLoading(true);
       setError(null);
+
       const data = await apiClient.getListings({ available: true });
       setListings(data.map(listingResponseToListing));
     } catch (err) {
@@ -47,11 +49,12 @@ const Browse = () => {
 
   const filteredListings = useMemo(() => {
     return listings.filter((listing) => {
-      const searchText = searchQuery.toLowerCase();
+      const search = searchQuery.toLowerCase();
+
       const matchesSearch =
-        listing.title.toLowerCase().includes(searchText) ||
-        listing.description.toLowerCase().includes(searchText) ||
-        listing.location.toLowerCase().includes(searchText);
+        listing.title.toLowerCase().includes(search) ||
+        listing.description.toLowerCase().includes(search) ||
+        listing.location.toLowerCase().includes(search);
 
       const matchesCategory =
         filters.categories.length === 0 ||
@@ -59,7 +62,7 @@ const Browse = () => {
 
       const matchesBrand =
         filters.brands.length === 0 ||
-        (listing.brand && filters.brands.some((brand) => brand.toLowerCase() === listing.brand?.toLowerCase()));
+        (listing.brand && filters.brands.some((b) => b.toLowerCase() === listing.brand!.toLowerCase()));
 
       const matchesPrice =
         listing.price >= filters.pricePerDay[0] &&
@@ -69,7 +72,7 @@ const Browse = () => {
     });
   }, [filters, listings, searchQuery]);
 
-  const handleClearFilters = () => {
+  const clearFilters = () => {
     setSearchQuery("");
     setFilters({
       categories: [],
@@ -85,49 +88,42 @@ const Browse = () => {
 
   return (
     <div className="flex h-screen">
-      <Sidebar userType={user?.userType || 'farmer'} />
+      <Sidebar userType={user?.userType || "farmer"} />
+
       <div className="flex-1 flex overflow-hidden">
         <AdvancedFilters filters={filters} onFiltersChange={setFilters} />
+
         <main className="flex-1 overflow-y-auto">
           <div className="container mx-auto px-4 py-12">
-            <div className="mb-8">
-              <h1 className="text-4xl font-bold mb-2">Browse Listings</h1>
-              <p className="text-muted-foreground text-lg">
-                Find the perfect equipment or land for your farming needs
-              </p>
-            </div>
 
-            <div className="mb-8">
-              <div className="relative max-w-2xl">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name, location, or description..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 h-12"
-                />
-              </div>
+            <h1 className="text-4xl font-bold mb-2">Browse Listings</h1>
+            <p className="text-muted-foreground text-lg mb-8">
+              Find equipment or land for your farming needs
+            </p>
+
+            <div className="relative max-w-2xl mb-8">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-5 w-5" />
+              <Input
+                placeholder="Search listings..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-12"
+              />
             </div>
 
             <div className="mb-4 text-sm text-muted-foreground">
               {isLoading
                 ? "Fetching listings..."
                 : error
-                  ? "Unable to load listings."
-                  : `${filteredListings.length} ${filteredListings.length === 1 ? "result" : "results"} found`}
+                ? "Unable to load listings."
+                : `${filteredListings.length} results found`}
             </div>
 
-            {isLoading && (
-              <div className="py-12 text-center text-muted-foreground">
-                Loading listings...
-              </div>
-            )}
+            {isLoading && <div className="py-12 text-center">Loading...</div>}
 
-            {!isLoading && error && (
-              <div className="text-center py-12 space-y-4">
-                <p className="text-muted-foreground text-lg">
-                  {error}
-                </p>
+            {error && (
+              <div className="text-center py-12">
+                <p className="text-lg text-muted-foreground">{error}</p>
                 <Button variant="outline" onClick={fetchListings}>
                   Retry
                 </Button>
@@ -144,16 +140,15 @@ const Browse = () => {
 
                 {filteredListings.length === 0 && (
                   <div className="text-center py-12">
-                    <p className="text-muted-foreground text-lg mb-4">
-                      No listings found matching your criteria
-                    </p>
-                    <Button variant="outline" onClick={handleClearFilters}>
+                    <p className="text-muted-foreground mb-4">No matching listings found</p>
+                    <Button variant="outline" onClick={clearFilters}>
                       Clear Filters
                     </Button>
                   </div>
                 )}
               </>
             )}
+
           </div>
         </main>
       </div>
