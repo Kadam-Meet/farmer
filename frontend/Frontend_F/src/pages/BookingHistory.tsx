@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -7,32 +7,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { format } from "date-fns";
-
-interface Booking {
-  id: string;
-  start_date: string;
-  listing: {
-    title: string;
-    type: string;
-  };
-  total_price: number;
-  status: string;
-  owner_id: string;
-  renter_id: string;
-}
+import { apiClient, type BookingResponse, type BookingStatus } from "@/lib/api";
 
 const BookingHistory = () => {
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] = useState<BookingResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchBookings();
-  }, []);
-
-  const fetchBookings = async () => {
+  const fetchBookings = useCallback(async () => {
     try {
+      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         navigate("/");
@@ -40,34 +25,23 @@ const BookingHistory = () => {
       }
       setCurrentUserId(user.id);
 
-      const { data, error } = await supabase
-        .from("bookings")
-        .select(`
-          *,
-          listing:listings(title, type)
-        `)
-        .or(`owner_id.eq.${user.id},renter_id.eq.${user.id}`)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setBookings(data || []);
+      const data = await apiClient.getBookings();
+      setBookings(data ?? []);
     } catch (error) {
       console.error("Error fetching bookings:", error);
       toast.error("Failed to load bookings");
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
 
-  const handleStatusUpdate = async (bookingId: string, newStatus: "pending" | "accepted" | "rejected" | "completed" | "cancelled") => {
+  useEffect(() => {
+    fetchBookings();
+  }, [fetchBookings]);
+
+  const handleStatusUpdate = async (bookingId: string, newStatus: BookingStatus) => {
     try {
-      const { error } = await supabase
-        .from("bookings")
-        .update({ status: newStatus })
-        .eq("id", bookingId);
-
-      if (error) throw error;
-      
+      await apiClient.updateBookingStatus(bookingId, newStatus);
       toast.success(`Booking ${newStatus}`);
       fetchBookings();
     } catch (error) {
@@ -76,7 +50,7 @@ const BookingHistory = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: BookingStatus) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       pending: "secondary",
       accepted: "default",
@@ -98,16 +72,19 @@ const BookingHistory = () => {
     return bookings.filter(b => b.renter_id === currentUserId);
   };
 
-  const renderBookingRow = (booking: Booking) => {
+  const renderBookingRow = (booking: BookingResponse) => {
     const isOwner = booking.owner_id === currentUserId;
     const canAcceptReject = isOwner && booking.status === "pending";
+    const listingTitle = booking.listing?.title ?? "Listing";
+    const listingType = booking.listing?.type ?? "equipment";
+    const price = booking.total_price ?? 0;
 
     return (
       <tr key={booking.id} className="border-b">
         <td className="py-4 px-4">{format(new Date(booking.start_date), "dd/MM/yyyy")}</td>
-        <td className="py-4 px-4">{booking.listing.title}</td>
-        <td className="py-4 px-4 capitalize">{booking.listing.type}</td>
-        <td className="py-4 px-4">₹{booking.total_price.toLocaleString()}</td>
+        <td className="py-4 px-4">{listingTitle}</td>
+        <td className="py-4 px-4 capitalize">{listingType}</td>
+        <td className="py-4 px-4">₹{price.toLocaleString()}</td>
         <td className="py-4 px-4">{getStatusBadge(booking.status)}</td>
         <td className="py-4 px-4">
           <Badge variant="outline">{isOwner ? "Owner" : "Renter"}</Badge>

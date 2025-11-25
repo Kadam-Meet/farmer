@@ -129,7 +129,7 @@ const AddListing = () => {
     setIsSubmitting(true);
     try {
       await apiClient.createListing(payload);
-      toast.success("Listing created successfully!");
+    toast.success("Listing created successfully!");
       setFormValues(initialFormState);
       setImages([]);
       setListingType("equipment");

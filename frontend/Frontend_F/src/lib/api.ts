@@ -63,6 +63,41 @@ export interface ListingQueryParams {
   offset?: number;
 }
 
+export type BookingStatus =
+  | 'pending'
+  | 'accepted'
+  | 'rejected'
+  | 'completed'
+  | 'cancelled';
+
+export interface BookingResponse {
+  id: string;
+  listing_id: string;
+  renter_id: string;
+  owner_id: string;
+  start_date: string;
+  end_date: string;
+  total_price?: number;
+  status: BookingStatus;
+  created_at: string;
+  updated_at: string;
+  listing: ListingResponse;
+}
+
+export interface BookingQueryParams {
+  role?: 'all' | 'owner' | 'renter';
+  status?: BookingStatus;
+  limit?: number;
+  offset?: number;
+}
+
+export interface BookingCreateRequest {
+  listing_id: string;
+  start_date: string;
+  end_date: string;
+  total_price?: number;
+}
+
 export interface ChatRequest {
   message: string;
   conversation_id?: string;
@@ -262,6 +297,32 @@ class APIClient {
     return this.request<ListingResponse>('/listings/', {
       method: 'POST',
       body: formData,
+    });
+  }
+
+  // Booking endpoints
+  async getBookings(params: BookingQueryParams = {}): Promise<BookingResponse[]> {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      searchParams.append(key, String(value));
+    });
+    const query = searchParams.toString();
+    const endpoint = query ? `/bookings/?${query}` : '/bookings/';
+    return this.request<BookingResponse[]>(endpoint, { method: 'GET' });
+  }
+
+  async createBooking(payload: BookingCreateRequest): Promise<BookingResponse> {
+    return this.request<BookingResponse>('/bookings/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateBookingStatus(bookingId: string, status: BookingStatus): Promise<BookingResponse> {
+    return this.request<BookingResponse>(`/bookings/${bookingId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
     });
   }
 }
